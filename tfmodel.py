@@ -3,8 +3,10 @@ from tensorflow import keras
 from tensorflow.keras.models import load_model
 import cv2
 
+
 class TFTagger:
     def __init__(self, model_directory,batch_size=8):
+
         self.model=load_model(model_directory)
         # Get the input tensor(s) of the model
         input_tensors = self.model.input
@@ -21,7 +23,7 @@ class TFTagger:
             mx = max(h, w)
             scale_x = self.width / mx
             scale_y = self.height / mx
-            scale = min(scale_y, scale_y)
+            scale = min(scale_x, scale_y)
             canvas = np.ones((self.height, self.width, 3), dtype=np.uint8) * 255
             new_h = int(scale * h)
             new_w = int(scale * w)
@@ -36,13 +38,3 @@ class TFTagger:
 
         return results
 
-
-r"""from glob import glob
-
-filelist=glob(r'D:\datasetstosend\kagome\10_A/*.png')
-filelist=filelist[0:8]
-imglist=[cv2.imread(file) for file in filelist]
-tagger=TFTagger(r'W:\python\utils\autotagger\wd-v1-4-swinv2-tagger-v2')
-
-results=tagger(imglist)
-p=0"""

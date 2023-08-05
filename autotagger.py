@@ -12,6 +12,18 @@ include_characters = False
 tag2index = {}
 import sqlite3
 
+try:
+    with open("tf_paths.txt", "r") as f:
+        TF_MODELS = f.readlines()
+except:
+    TF_MODELS = []
+
+try:
+    with open("trt_paths.txt", "r") as f:
+        TRT_MODELS = f.readlines()
+except:
+    TRT_MODELS = []
+
 
 def tags_no_characters():
     conn = sqlite3.connect('tags.db')
@@ -33,7 +45,7 @@ def tags_with_characters():
     return tagout
 
 
-def process_probabilities(probabilities, files, threshold, filter,append_to_front):
+def process_probabilities(probabilities, files, threshold, filter,append_to_front, leave_underscores):
     global include_characters, tags
     for i, file in enumerate(files):
 
@@ -52,6 +64,7 @@ def process_probabilities(probabilities, files, threshold, filter,append_to_fron
         passedtags = passedtags[sorted_confidecnes]
         appender=copy.copy(append_to_front)
         appender.extend(passedtags)
+        appender = [x.replace("_", " ") for x in appender] if not leave_underscores else appender
         outtext = ', '.join(appender)
         wrt = open(txt_file, 'w')
         wrt.write(outtext)
@@ -66,7 +79,9 @@ if __name__ == "__main__":
     parser.add_argument('--model_path',required=True)
     parser.add_argument("--use_tensorrt", action="store_true", help="if you wnt to use ")
     parser.add_argument("--exclude_tags", nargs="*", help="the tags to exclude from being tagged in ")
-    parser.add_argument("--append_tags", nargs="*", help="tags to append the the front of the caption, automatic , at end ")
+    parser.add_argument("--append_tags", nargs="*", help="tags to append the the front of the caption, automatic , at end")
+    parser.add_argument("--leave_underscores", default=False, action="store_true", help="leaves the underscores in the tags")
+    parser.add_argument("--greedy", default=False, action="store_true", help="gets the max probabilities for each tag instead of taking the mean")
 
     args = parser.parse_args()
     if args.append_tags is None:
@@ -97,12 +112,13 @@ if __name__ == "__main__":
 
     if args.use_tensorrt:
         from trtmodel import TrtTagger
+        # tagger = TrtTagger(args.model_path) # original code
+        taggers = [TrtTagger(modelpath) for modelpath in TRT_MODELS]
 
-        tagger = TrtTagger(args.model_path)
     else:
         from tfmodel import TFTagger
-
-        tagger = TFTagger(args.model_path)
+        # tagger = TFTagger(args.model_path) # original code
+        taggers = [TFTagger(modelpath) for modelpath in TF_MODELS]
 
     image_dir = args.image_dir
     filelist = []
@@ -112,7 +128,7 @@ if __name__ == "__main__":
     filelist.extend(glob(image_dir + '/*.webp'))
     accumulated_files = []
     img_list = []
-    batch_size = tagger.batch_size
+    batch_size = taggers[0].batch_size
 
     for file in tqdm(filelist):
         try:
@@ -123,17 +139,61 @@ if __name__ == "__main__":
             img_list += [img]
             accumulated_files += [file]
         if len(accumulated_files) >= batch_size:
-            output_probabilities = tagger(img_list)
-            process_probabilities(output_probabilities, accumulated_files, threshold, filter,append_to_front)
+            #output_probabilities = tagger(img_list) # original code
+
+            output_probabilities_lst = [tagger(img_list) for tagger in taggers]
+
+            if args.greedy:
+                output_probabilities = np.max(
+                    np.array(output_probabilities_lst), axis=0
+                )
+            else:
+                output_probabilities = np.mean(
+                    np.array(output_probabilities_lst), axis=0
+                )
+            
+            process_probabilities(
+                output_probabilities,
+                accumulated_files,
+                threshold,
+                filter,
+                append_to_front,
+                args.leave_underscores
+            )
             accumulated_files = []
             img_list = []
 
     if len(accumulated_files) > 0:
         Length = len(img_list)
         diff = batch_size - Length
-        blank = np.zeros((tagger.height, tagger.width, 3), dtype=np.uint8)
+        blank = np.zeros(
+            (
+                taggers[0].height,
+                taggers[0].width, 3
+            ),
+            dtype=np.uint8
+        )
         img_list.extend([blank] * diff)
-        output_probabilities = tagger(img_list)[0:Length]
-        process_probabilities(output_probabilities, accumulated_files, threshold, filter,append_to_front)
+
+        #output_probabilities = tagger(img_list)[0:Length] # original code
+
+        output_probabilities_lst = [tagger(img_list)[0:Length] for tagger in taggers]
+        if args.greedy:
+            output_probabilities = np.max(
+                np.array(output_probabilities_lst), axis=0
+            )
+        else:
+            output_probabilities = np.mean(
+                np.array(output_probabilities_lst), axis=0
+            )
+
+        process_probabilities(
+            output_probabilities,
+            accumulated_files,
+            threshold,
+            filter,
+            append_to_front,
+            args.leave_underscores
+        )
         accumulated_files = []
         img_list=[]

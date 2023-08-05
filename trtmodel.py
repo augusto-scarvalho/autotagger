@@ -1,9 +1,5 @@
 import cv2
 import numpy as np
-import os
-import csv
-import copy
-import argparse
 from glob import glob
 
 tags = None
@@ -12,6 +8,7 @@ include_characters = False
 import pycuda.driver as cuda
 import pycuda.autoinit
 import tensorrt as trt
+
 
 class HostDeviceMem(object):
     def __init__(self, host_mem, device_mem):
@@ -27,6 +24,7 @@ class HostDeviceMem(object):
 
 class TrtTagger:
     def __init__(self, engine_path, max_batch_size=1):
+        print(engine_path)
         self.engine_path = engine_path
         self.dtype = np.float32
         self.logger = trt.Logger(trt.Logger.ERROR)
@@ -48,6 +46,7 @@ class TrtTagger:
             engine_data = f.read()
         engine = trt_runtime.deserialize_cuda_engine(engine_data)
         return engine
+            
 
     def allocate_buffers(self):
         inputs = []
@@ -69,6 +68,7 @@ class TrtTagger:
 
         return inputs, outputs, bindings, stream
 
+
     def __call__(self, pre_processed_img_list):
         post_processed_img_list = []
         for img in pre_processed_img_list:
@@ -76,7 +76,7 @@ class TrtTagger:
             mx = max(h, w)
             scale_x = self.width / mx
             scale_y = self.height / mx
-            scale = min(scale_y, scale_y)
+            scale = min(scale_x, scale_y)
             canvas = np.ones((self.height, self.width, 3), dtype=np.uint8) * 255
             new_h = int(scale * h)
             new_w = int(scale * w)
@@ -99,4 +99,9 @@ class TrtTagger:
         outtmp=[out.host.reshape(self.batch_size, -1) for out in self.outputs]
 
         return outtmp[0]
+
+
+    def __del__(self):
+        self.engine.__del__()
+        self.context.__del__()
 
