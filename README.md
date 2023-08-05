@@ -1,4 +1,3 @@
-
 Auto Tagger with TensorRT implementation
 
 This is meant to work with similing wolfs trained booru taggers
@@ -37,13 +36,26 @@ There is also a gui for ease of use
 <br>
 ![image](https://github.com/bdiaz29/autotagger/assets/16212103/11415ddc-68ea-47d9-97c8-a69102b6e740)
 
-<h1> Installation  </h1>
+# Installation
 
 git clone https://github.com/bdiaz29/autotagger
 <br>
 pip install -r requirements.txt
 
+# Changes
+
+![image](https://files.catbox.moe/4vqtfg.png)
+
+## Multi tagger support
+You can pass one or more taggers at the same time and get the combined probability of all the models using one of the following modes:
+
+**Mean (Default mode)**: all the probabilities above the threshold are combined together and the mean value is used. Theoretically, it should reduce the chances of one model predicting false positives and false negatives since the classification is going to be distributed.
+
+**Greedy**: all the tags with probabilities above the threshold predicted by all the models will be used. Theoretically, it should reduce the chances of one model predicting false negatives, but will increase the chances for false positives. Use this mode if you plan to curate your dataset manually.
 
 
+## Toggle underscore
 
+**Remove underscores (Default mode)**
 
+**Keep underscores (Default mode)**
